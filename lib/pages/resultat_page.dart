@@ -1,7 +1,9 @@
 import 'dart:io';
-
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'package:gal/gal.dart';
 import 'meuble_generation_page.dart';
 
 class ResultatPage extends StatelessWidget {
@@ -61,7 +63,7 @@ class ResultatPage extends StatelessWidget {
     return null;
   }
 
-  Widget _buildImageApres() {
+  Widget _buildImageApres(BuildContext context) {
     final String? imageUrl = getImageGenereeUrl();
 
     if (imageUrl == null) {
@@ -80,41 +82,56 @@ class ResultatPage extends StatelessWidget {
       );
     }
 
-    return Image.network(
-      imageUrl,
-      fit: BoxFit.cover,
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) {
-          return child;
-        }
 
-        return Container(
-          color: cardColor,
-          alignment: Alignment.center,
-          child: const CircularProgressIndicator(
-            color: accentYellow,
-          ),
-        );
-      },
-      errorBuilder: (context, error, stackTrace) {
-        debugPrint('ERREUR IMAGE GENEREE : $error');
-        debugPrint('URL : $imageUrl');
-
-        return Container(
-          color: cardColor,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.all(12),
-          child: Text(
-            'Impossible de charger l’image générée.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.plusJakartaSans(
-              color: secondaryText,
-              fontSize: 11,
-            ),
-          ),
-        );
-      },
+    return GestureDetector(
+    onTap: () {
+    Navigator.push(
+    context,
+    MaterialPageRoute(
+    builder: (context) => ImageFullscreenPage(
+    imageUrl: imageUrl,
+    ),
+    ),
     );
+    },
+    child: Image.network(
+    imageUrl,
+    fit: BoxFit.cover,
+    loadingBuilder: (context, child, loadingProgress) {
+    if (loadingProgress == null) {
+    return child;
+    }
+
+    return Container(
+    color: cardColor,
+    alignment: Alignment.center,
+    child: const CircularProgressIndicator(
+    color: accentYellow,
+    ),
+    );
+    },
+    errorBuilder: (context, error, stackTrace) {
+    debugPrint('ERREUR IMAGE GENEREE : $error');
+    debugPrint('URL : $imageUrl');
+
+    return Container(
+    color: cardColor,
+    alignment: Alignment.center,
+    padding: const EdgeInsets.all(12),
+    child: Text(
+    'Impossible de charger l’image générée.',
+    textAlign: TextAlign.center,
+    style: GoogleFonts.plusJakartaSans(
+    color: secondaryText,
+    fontSize: 11,
+    ),
+    ),
+    );
+    },
+    ),
+    );
+
+
   }
 
 
@@ -156,12 +173,12 @@ class ResultatPage extends StatelessWidget {
                   Expanded(
                     child: Center(
                       child: Text(
-                        'AI INTERIOR DESIGN',
+                        'A I  I N T E R I O R  D E S I G N',
                         style: GoogleFonts.plusJakartaSans(
                           color: creamColor.withOpacity(0.85),
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          letterSpacing: 2,
+                          letterSpacing: 2.5,
                         ),
                       ),
                     ),
@@ -225,7 +242,7 @@ class ResultatPage extends StatelessWidget {
                   Expanded(
                     child: _imageCard(
                       titre: 'Après',
-                      image: _buildImageApres(),
+                      image: _buildImageApres(context),
                     ),
                   ),
                 ],
@@ -384,108 +401,108 @@ class ResultatPage extends StatelessWidget {
 // MEUBLES SELON LA PIÈCE
 // ============================================================
 
-List<Map<String, dynamic>> getMeublesSelonPiece(String piece) {
-switch (piece.toLowerCase()) {
-case 'salon':
-return [
-{
-'icon': Icons.weekend_outlined,
-'nom': 'Canapé',
-'description': 'Design épuré et confortable',
-},
-{
-'icon': Icons.table_restaurant_outlined,
-'nom': 'Table basse',
-'description': 'Bois clair et lignes minimalistes',
-},
-{
-'icon': Icons.chair_outlined,
-'nom': 'Fauteuil',
-'description': 'Assise élégante et confortable',
-},
-{
-'icon': Icons.tv_outlined,
-'nom': 'Meuble TV',
-'description': 'Rangement moderne et discret',
-},
-];
+  List<Map<String, dynamic>> getMeublesSelonPiece(String piece) {
+    switch (piece.toLowerCase()) {
+      case 'salon':
+        return [
+          {
+            'icon': Icons.weekend_outlined,
+            'nom': 'Canape',
+            'description': 'Design épuré et confortable',
+          },
+          {
+            'icon': Icons.table_restaurant_outlined,
+            'nom': 'Table basse',
+            'description': 'Bois clair et lignes minimalistes',
+          },
+          {
+            'icon': Icons.chair_outlined,
+            'nom': 'Fauteuil',
+            'description': 'Assise élégante et confortable',
+          },
+          {
+            'icon': Icons.tv_outlined,
+            'nom': 'Meuble TV',
+            'description': 'Rangement moderne et discret',
+          },
+        ];
 
-case 'chambre':
-return [
-{
-'icon': Icons.bed_outlined,
-'nom': 'Lit',
-'description': 'Structure confortable et élégante',
-},
-{
-'icon': Icons.table_bar_outlined,
-'nom': 'Table de chevet',
-'description': 'Pratique et assortie au style',
-},
-{
-'icon': Icons.door_sliding_outlined,
-'nom': 'Armoire',
-'description': 'Rangement fonctionnel et harmonieux',
-},
-{
-'icon': Icons.inventory_2_outlined,
-'nom': 'Commode',
-'description': 'Rangement compact et élégant',
-},
-];
+      case 'chambre':
+        return [
+          {
+            'icon': Icons.bed_outlined,
+            'nom': 'Lit',
+            'description': 'Structure confortable et élégante',
+          },
+          {
+            'icon': Icons.table_bar_outlined,
+            'nom': 'Table de chevet',
+            'description': 'Pratique et assortie au style',
+          },
+          {
+            'icon': Icons.door_sliding_outlined,
+            'nom': 'Armoire',
+            'description': 'Rangement fonctionnel et harmonieux',
+          },
+          {
+            'icon': Icons.inventory_2_outlined,
+            'nom': 'Commode',
+            'description': 'Rangement compact et élégant',
+          },
+        ];
 
-case 'cuisine':
-return [
-{
-'icon': Icons.countertops_outlined,
-'nom': 'Îlot central',
-'description': 'Surface pratique et conviviale',
-},
-{
-'icon': Icons.chair_outlined,
-'nom': 'Tabourets',
-'description': 'Assises adaptées à l’espace',
-},
-{
-'icon': Icons.table_restaurant_outlined,
-'nom': 'Table à manger',
-'description': 'Design harmonieux et fonctionnel',
-},
-{
-'icon': Icons.kitchen_outlined,
-'nom': 'Meuble de rangement',
-'description': 'Optimisation intelligente de l’espace',
-},
-];
+      case 'cuisine':
+        return [
+          {
+            'icon': Icons.countertops_outlined,
+            'nom': 'Îlot central',
+            'description': 'Surface pratique et conviviale',
+          },
+          {
+            'icon': Icons.chair_outlined,
+            'nom': 'Tabourets',
+            'description': 'Assises adaptées à l’espace',
+          },
+          {
+            'icon': Icons.table_restaurant_outlined,
+            'nom': 'Table à manger',
+            'description': 'Design harmonieux et fonctionnel',
+          },
+          {
+            'icon': Icons.kitchen_outlined,
+            'nom': 'Meuble de rangement',
+            'description': 'Optimisation intelligente de l’espace',
+          },
+        ];
 
-case 'bureau':
-return [
-{
-'icon': Icons.desk_outlined,
-'nom': 'Bureau',
-'description': 'Surface de travail fonctionnelle',
-},
-{
-'icon': Icons.chair_outlined,
-'nom': 'Chaise de bureau',
-'description': 'Confort et ergonomie',
-},
-{
-'icon': Icons.menu_book_outlined,
-'nom': 'Bibliothèque',
-'description': 'Rangement pratique et élégant',
-},
-{
-'icon': Icons.inventory_2_outlined,
-'nom': 'Meuble de rangement',
-'description': 'Organisation optimale',
-},
-];
+      case 'bureau':
+        return [
+          {
+            'icon': Icons.desk_outlined,
+            'nom': 'Bureau',
+            'description': 'Surface de travail fonctionnelle',
+          },
+          {
+            'icon': Icons.chair_outlined,
+            'nom': 'Chaise de bureau',
+            'description': 'Confort et ergonomie',
+          },
+          {
+            'icon': Icons.menu_book_outlined,
+            'nom': 'Bibliothèque',
+            'description': 'Rangement pratique et élégant',
+          },
+          {
+            'icon': Icons.inventory_2_outlined,
+            'nom': 'Meuble de rangement',
+            'description': 'Organisation optimale',
+          },
+        ];
 
-default:
-return [];
-}
-}
+      default:
+        return [];
+    }
+  }
 
 
 // ============================================================
@@ -541,6 +558,7 @@ return [];
   // IMAGE AVANT / APRÈS
   // ============================================================
 
+
   Widget _imageCard({
     required String titre,
     required Widget image,
@@ -559,16 +577,17 @@ return [];
         children: [
           image,
 
-          // Dégradé
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.transparent,
-                  Colors.black.withOpacity(0.65),
-                ],
+          IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.65),
+                  ],
+                ),
               ),
             ),
           ),
@@ -576,12 +595,14 @@ return [];
           Positioned(
             left: 14,
             bottom: 14,
-            child: Text(
-              titre,
-              style: GoogleFonts.plusJakartaSans(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+            child: IgnorePointer(
+              child: Text(
+                titre,
+                style: GoogleFonts.plusJakartaSans(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
@@ -589,7 +610,6 @@ return [];
       ),
     );
   }
-
   // ============================================================
   // COULEURS
   // ============================================================
@@ -620,87 +640,258 @@ return [];
       BuildContext context,
       ) {
     return GestureDetector(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => MeubleGenerationPage(
-                piece: piece,
-                style: style,
-                couleur: couleur,
-                meuble: titre,
-                description: description,
-                imagePath: imageAvant.path,
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MeubleGenerationPage(
+              piece: piece,
+              style: style,
+              couleur: couleur,
+              meuble: titre,
+              description: description,
+              imageUrl: getImageGenereeUrl() ?? '',
+            ),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: borderColor,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: accentYellow.withOpacity(0.10),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                color: accentYellow,
+                size: 21,
               ),
             ),
-          );
-        },
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 12,
-          ),
-          decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: borderColor,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: accentYellow.withOpacity(0.10),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  icon,
-                  color: accentYellow,
-                  size: 21,
-                ),
+
+            const SizedBox(width: 13),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    titre,
+                    style: GoogleFonts.plusJakartaSans(
+                      color: creamColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+
+                  const SizedBox(height: 3),
+
+                  Text(
+                    description,
+                    style: GoogleFonts.plusJakartaSans(
+                      color: secondaryText,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
               ),
-
-          const SizedBox(width: 13),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
-              children: [
-                Text(
-                  titre,
-                  style: GoogleFonts.plusJakartaSans(
-                    color: creamColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
-                const SizedBox(height: 3),
-
-                Text(
-                  description,
-                  style: GoogleFonts.plusJakartaSans(
-                    color: secondaryText,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
             ),
+
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: secondaryText,
+              size: 14,
+            ),
+          ],
+        ),
+      ),
+    );
+
+  }
+}
+
+
+class ImageFullscreenPage extends StatefulWidget {
+  final String imageUrl;
+
+  const ImageFullscreenPage({
+    super.key,
+    required this.imageUrl,
+  });
+
+  @override
+  State<ImageFullscreenPage> createState() =>
+      _ImageFullscreenPageState();
+}
+
+class _ImageFullscreenPageState
+    extends State<ImageFullscreenPage> {
+
+  bool telechargement = false;
+
+  Future<void> telechargerImage() async {
+    try {
+      setState(() {
+        telechargement = true;
+      });
+
+      debugPrint(
+        'Téléchargement image : ${widget.imageUrl}',
+      );
+
+      final response = await http.get(
+        Uri.parse(widget.imageUrl),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'Impossible de récupérer l’image.',
+        );
+      }
+
+      final Uint8List bytes = response.bodyBytes;
+
+      await Gal.putImageBytes(
+        bytes,
+        name: 'AI_Interior_Design_${DateTime.now().millisecondsSinceEpoch}',
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Image enregistrée dans votre galerie.',
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint(
+        'ERREUR TELECHARGEMENT : $e',
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Impossible d’enregistrer l’image : $e',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          telechargement = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+
+        title: Text(
+          'Votre intérieur',
+          style: GoogleFonts.plusJakartaSans(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+
+        actions: [
+          IconButton(
+            onPressed:
+            telechargement
+                ? null
+                : telechargerImage,
+            icon: telechargement
+                ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2,
+              ),
+            )
+                : const Icon(
+              Icons.download_rounded,
+            ),
+            tooltip: 'Télécharger',
           ),
 
-          const Icon(
-            Icons.arrow_forward_ios_rounded,
-            color: secondaryText,
-            size: 14,
-          ),
+          const SizedBox(width: 8),
         ],
       ),
-    ),
+
+      body: SizedBox.expand(
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 5.0,
+          panEnabled: true,
+          scaleEnabled: true,
+
+          child: Image.network(
+            widget.imageUrl,
+            width: double.infinity,
+            height: double.infinity,
+            fit: BoxFit.contain,
+
+            loadingBuilder:
+                (context, child, loadingProgress) {
+              if (loadingProgress == null) {
+                return child;
+              }
+
+              return const CircularProgressIndicator(
+                color: Colors.white,
+              );
+            },
+
+            errorBuilder:
+                (context, error, stackTrace) {
+              return Padding(
+                padding:
+                const EdgeInsets.all(30),
+                child: Text(
+                  'Impossible de charger l’image.',
+                  textAlign: TextAlign.center,
+                  style:
+                  GoogleFonts.plusJakartaSans(
+                    color: Colors.white,
+                    fontSize: 13,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 }
+

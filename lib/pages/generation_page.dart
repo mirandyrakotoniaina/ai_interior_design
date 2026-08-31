@@ -390,12 +390,12 @@ class _GenerationPageState extends State<GenerationPage>
                       Expanded(
                         child: Center(
                           child: Text(
-                            'AI INTERIOR DESIGN',
+                            'A I  I N T E R I O R  D E S I G N',
                             style: GoogleFonts.plusJakartaSans(
                               color: creamColor.withOpacity(0.85),
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              letterSpacing: 2,
+                              letterSpacing: 2.5,
                             ),
                           ),
                         ),
