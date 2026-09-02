@@ -1,1660 +1,1257 @@
-import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 class MeubleGenerationPage extends StatefulWidget {
-  final String piece;
-  final String style;
-  final String couleur;
-  final String meuble;
-  final String description;
+final String piece;
+final String style;
+final String couleur;
+final String meuble;
+final String description;
 
-  // Image "Après" générée par l'IA depuis ResultatPage
-  final dynamic imageUrl;
+final String? estimatedPrice;
+final List<dynamic> stores;
 
-  const MeubleGenerationPage({
-    super.key,
-    required this.piece,
-    required this.style,
-    required this.couleur,
-    required this.meuble,
-    required this.description,
-    required this.imageUrl,
-  });
+const MeubleGenerationPage({
+super.key,
+required this.piece,
+required this.style,
+required this.couleur,
+required this.meuble,
+required this.description,
+this.estimatedPrice,
+this.stores = const [],
+});
 
-  @override
-  State<MeubleGenerationPage> createState() =>
-      _MeubleGenerationPageState();
+@override
+State<MeubleGenerationPage> createState() =>
+_MeubleGenerationPageState();
 }
 
-class _MeubleGenerationPageState extends State<MeubleGenerationPage>
-    with SingleTickerProviderStateMixin {
-  // ============================================================
-  // COULEURS DU THÈME
-  // ============================================================
+class _MeubleGenerationPageState
+extends State<MeubleGenerationPage> {
 
-  static const Color backgroundColor = Color(0xFF102A27);
-  static const Color cardColor = Color(0xFF183C34);
-  static const Color accentYellow = Color(0xFFE3A812);
-  static const Color creamColor = Color(0xFFF5EEDC);
-  static const Color secondaryText = Color(0xFFD5D0C2);
-  static const Color borderColor = Color(0xFF2A5148);
+// ============================================================
+// COULEURS
+// ============================================================
 
-  // ============================================================
-  // PROGRESSION
-  // ============================================================
+static const Color backgroundColor =
+Color(0xFF102A27);
 
-  double progression = 0;
+static const Color cardColor =
+Color(0xFF183C34);
 
-  // ============================================================
-  // IMAGE GÉNÉRÉE PAR LE BACKEND
-  // ============================================================
+static const Color accentYellow =
+Color(0xFFE3A812);
 
-  String? imageGeneree;
+static const Color creamColor =
+Color(0xFFF5EEDC);
 
-  // ============================================================
-  // DONNÉES DES MEUBLES
-  // ============================================================
+static const Color secondaryText =
+Color(0xFFD5D0C2);
 
-  List<Map<String, dynamic>> meubles = [];
+static const Color borderColor =
+Color(0xFF2A5148);
 
-  // ============================================================
-  // ANIMATION
-  // ============================================================
+// ============================================================
+// DONNÉES
+// ============================================================
 
-  late AnimationController animationController;
+late String prix;
+late List<dynamic> stores;
 
-  // ============================================================
-  // ÉTAPES
-  // ============================================================
+// ============================================================
+// INITIALISATION
+// ============================================================
 
-  final List<String> etapes = [
-    'Analyse de vos préférences',
-    'Recherche du meuble idéal',
-    'Création de votre meuble',
-    'Finalisation du rendu',
-  ];
+@override
+void initState() {
+super.initState();
 
-  int etapeActuelle = 0;
+// recupere les donnees retournees
 
-  // ============================================================
-  // INITIALISATION
-  // ============================================================
+prix = widget.estimatedPrice != null &&
+widget.estimatedPrice!.trim().isNotEmpty
+? widget.estimatedPrice!.trim()
+    : 'Prix non disponible';
 
-  @override
-  void initState() {
-    super.initState();
+stores = List<dynamic>.from(widget.stores);
 
-    animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat();
+debugPrint(
+'========== MEUBLE GENERATION ==========',
+);
 
-    lancerGeneration();
-  }
+debugPrint(
+'Meuble : ${widget.meuble}',
+);
 
-  // ============================================================
-  // GÉNÉRATION
-  // ============================================================
+debugPrint(
+'Prix : $prix',
+);
 
-  Future<void> lancerGeneration() async {
-    try {
-      if (!mounted) return;
+debugPrint(
+'Nombre de magasins : ${stores.length}',
+);
 
-      setState(() {
-        progression = 0.05;
-        etapeActuelle = 0;
-        imageGeneree = null;
-        meubles = [];
-      });
-
-      final uri = Uri.parse(
-        'https://ai-interior-designer-api.vercel.app/api/design/generate',
-      );
-
-      final request = http.MultipartRequest(
-        'POST',
-        uri,
-      );
-
-      // ==========================================================
-      // IMAGE "APRÈS" DE RESULTATPAGE
-      // ==========================================================
-
-      debugPrint(
-        '========== IMAGE DE RÉFÉRENCE ==========',
-      );
-
-      debugPrint(
-        'Image générée reçue : ${widget.imageUrl}',
-      );
-
-      if (widget.imageUrl == null ||
-          widget.imageUrl.toString().trim().isEmpty) {
-        throw Exception(
-          'L’image générée est introuvable.',
-        );
-      }
-
-      final imageUrl = widget.imageUrl.toString().trim();
-
-      final imageResponse = await http.get(
-        Uri.parse(imageUrl),
-      );
-
-      if (imageResponse.statusCode != 200) {
-        throw Exception(
-          'Impossible de récupérer l’image générée. '
-              'Code HTTP : ${imageResponse.statusCode}',
-        );
-      }
-
-      request.files.add(
-        http.MultipartFile.fromBytes(
-          'image',
-          imageResponse.bodyBytes,
-          filename: 'image_apres.jpg',
-        ),
-      );
-
-      debugPrint(
-        'Image "Après" ajoutée à la requête.',
-      );
-
-      // ==========================================================
-      // PARAMÈTRES
-      // ==========================================================
-
-      request.fields['room_type'] = widget.piece;
-      request.fields['style'] = widget.style;
-      request.fields['color_scheme'] = widget.couleur;
-      request.fields['furniture'] = widget.meuble;
-
-      request.fields['session_id'] =
-          DateTime.now().millisecondsSinceEpoch.toString();
-
-      // ==========================================================
-      // PROGRESSION
-      // ==========================================================
-
-      if (mounted) {
-        setState(() {
-          progression = 0.20;
-          etapeActuelle = 0;
-        });
-      }
-
-      // ==========================================================
-      // DEBUG
-      // ==========================================================
-
-      debugPrint(
-        '========== ENVOI BACKEND MEUBLE ==========',
-      );
-
-      debugPrint(
-        'URL: $uri',
-      );
-
-      debugPrint(
-        'Image source: IMAGE APRÈS',
-      );
-
-      debugPrint(
-        'Image URL: $imageUrl',
-      );
-
-      debugPrint(
-        'Pièce: ${widget.piece}',
-      );
-
-      debugPrint(
-        'Style: ${widget.style}',
-      );
-
-      debugPrint(
-        'Couleur: ${widget.couleur}',
-      );
-
-      debugPrint(
-        'Meuble: ${widget.meuble}',
-      );
-
-      debugPrint(
-        'Session ID: ${request.fields['session_id']}',
-      );
-
-      // ==========================================================
-      // ENVOI
-      // ==========================================================
-
-      final streamedResponse = await request.send();
-
-      if (mounted) {
-        setState(() {
-          progression = 0.45;
-          etapeActuelle = 1;
-        });
-      }
-
-      final response = await http.Response.fromStream(
-        streamedResponse,
-      );
-
-      // ==========================================================
-      // REPONSE BACKEND
-      // ==========================================================
-
-      debugPrint(
-        '========== REPONSE BACKEND ==========',
-      );
-
-      debugPrint(
-        response.statusCode.toString(),
-      );
-
-      debugPrint(
-        response.body,
-      );
-
-      debugPrint(
-        '=====================================',
-      );
-
-      if (response.statusCode < 200 ||
-          response.statusCode >= 300) {
-        throw Exception(
-          'Erreur backend ${response.statusCode}: ${response.body}',
-        );
-      }
-
-      final decoded = jsonDecode(response.body);
-
-      if (decoded is! Map) {
-        throw Exception(
-          'Réponse backend invalide.',
-        );
-      }
-
-      final Map<String, dynamic> data =
-      Map<String, dynamic>.from(decoded);
-
-      if (mounted) {
-        setState(() {
-          progression = 0.70;
-          etapeActuelle = 2;
-        });
-      }
-
-      // ==========================================================
-      // RESULT
-      // ==========================================================
-
-      final dynamic resultData = data['result'];
-
-      Map<String, dynamic>? result;
-
-      if (resultData is Map) {
-        result = Map<String, dynamic>.from(
-          resultData,
-        );
-      }
-
-      // ==========================================================
-      // IMAGE GÉNÉRÉE
-      // ==========================================================
-
-      String? generatedUrl;
-
-      // Première priorité :
-      // result.generated_image_url
-      if (result != null) {
-        final value =
-        result['generated_image_url'];
-
-        if (value is String &&
-            value.trim().isNotEmpty) {
-          generatedUrl = value.trim();
-        }
-      }
-
-      // Deuxième priorité :
-      // data.generated_image_url
-      if (generatedUrl == null) {
-        final value =
-        data['generated_image_url'];
-
-        if (value is String &&
-            value.trim().isNotEmpty) {
-          generatedUrl = value.trim();
-        }
-      }
-
-      debugPrint(
-        'GENERATED IMAGE URL = $generatedUrl',
-      );
-
-      if (generatedUrl == null ||
-          generatedUrl.isEmpty) {
-        throw Exception(
-          'Le backend n’a pas retourné generated_image_url.',
-        );
-      }
-
-      // ==========================================================
-      // RECUPERATION DES MEUBLES
-      // ==========================================================
-
-      final marketOffers =
-      data['market_offers'];
-
-      if (marketOffers is List) {
-        meubles = marketOffers
-            .whereType<Map>()
-            .map<Map<String, dynamic>>(
-              (item) =>
-          Map<String, dynamic>.from(item),
-        )
-            .toList();
-      } else {
-        meubles = [];
-      }
-
-      // ==========================================================
-      // DEBUG MEUBLES
-      // ==========================================================
-
-      debugPrint(
-        '========== MEUBLES RECUPERES ==========',
-      );
-
-      debugPrint(
-        'Nombre de meubles : ${meubles.length}',
-      );
-
-      for (final meubleData in meubles) {
-        debugPrint(
-          'Meuble : ${meubleData['furniture']}',
-        );
-
-        debugPrint(
-          'Crop : ${meubleData['crop_image_url']}',
-        );
-
-        debugPrint(
-          'Prix : ${meubleData['estimated_price']}',
-        );
-      }
-
-      // ==========================================================
-      // FIN
-      // ==========================================================
-
-      if (!mounted) return;
-
-      setState(() {
-        // IMPORTANT :
-        // On remplace l'image "Après" par la nouvelle
-        // image générée pour le meuble.
-        imageGeneree = generatedUrl;
-
-        progression = 1.0;
-        etapeActuelle = 3;
-      });
-
-      debugPrint(
-        'IMAGE GENEREE = $imageGeneree',
-      );
-    } catch (e, stackTrace) {
-      debugPrint(
-        '========== ERREUR GENERATION ==========',
-      );
-
-      debugPrint(
-        e.toString(),
-      );
-
-      debugPrint(
-        stackTrace.toString(),
-      );
-
-      debugPrint(
-        '=======================================',
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        progression = 0;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Impossible de générer le meuble : $e',
-          ),
-          backgroundColor: Colors.red.shade700,
-        ),
-      );
-    }
-  }
-
-  // ============================================================
-  // DISPOSE
-  // ============================================================
-
-  @override
-  void dispose() {
-    animationController.dispose();
-    super.dispose();
-  }
-
-  // ============================================================
-  // INTERFACE
-  // ============================================================
-
-  @override
-  Widget build(BuildContext context) {
-    final pourcentage =
-    (progression * 100).toInt();
-
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // ======================================================
-          // FOND
-          // ======================================================
-
-          Container(
-            color: backgroundColor,
-          ),
-
-          // ======================================================
-          // EFFET DE PROFONDEUR
-          // ======================================================
-
-          Positioned(
-            top: -120,
-            right: -100,
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color:
-                accentYellow.withOpacity(0.035),
-              ),
-            ),
-          ),
-
-          Positioned(
-            bottom: -150,
-            left: -120,
-            child: Container(
-              width: 350,
-              height: 350,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color:
-                Colors.white.withOpacity(0.018),
-              ),
-            ),
-          ),
-
-          // ======================================================
-          // CONTENU
-          // ======================================================
-
-          SafeArea(
-            child: Column(
-              children: [
-                // ==================================================
-                // HEADER
-                // ==================================================
-
-                Padding(
-                  padding:
-                  const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 10,
-                  ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
-                        icon: const Icon(
-                          Icons
-                              .arrow_back_ios_new_rounded,
-                          color: creamColor,
-                          size: 19,
-                        ),
-                      ),
-
-                      Expanded(
-                        child: Center(
-                          child: Text(
-                            'AI INTERIOR DESIGN',
-                            style: GoogleFonts
-                                .plusJakartaSans(
-                              color: creamColor
-                                  .withOpacity(0.85),
-                              fontSize: 11,
-                              fontWeight:
-                              FontWeight.w600,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(width: 48),
-                    ],
-                  ),
-                ),
-
-                // ==================================================
-                // CONTENU CENTRAL
-                // ==================================================
-
-                Expanded(
-                  child: Center(
-                    child: Padding(
-                      padding:
-                      const EdgeInsets.symmetric(
-                        horizontal: 30,
-                      ),
-                      child: SingleChildScrollView(
-                        child: Column(
-                          mainAxisAlignment:
-                          MainAxisAlignment.center,
-                          children: [
-                            // ======================================
-                            // ICÔNE ANIMÉE
-                            // ======================================
-
-                            AnimatedBuilder(
-                              animation:
-                              animationController,
-                              builder:
-                                  (context, child) {
-                                return Transform.rotate(
-                                  angle:
-                                  animationController
-                                      .value *
-                                      2 *
-                                      3.14159,
-                                  child: child,
-                                );
-                              },
-                              child: Container(
-                                width: 100,
-                                height: 100,
-                                decoration:
-                                BoxDecoration(
-                                  shape:
-                                  BoxShape.circle,
-                                  border: Border.all(
-                                    color:
-                                    accentYellow
-                                        .withOpacity(
-                                        0.35),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Container(
-                                    width: 68,
-                                    height: 68,
-                                    decoration:
-                                    BoxDecoration(
-                                      shape: BoxShape
-                                          .circle,
-                                      color:
-                                      accentYellow
-                                          .withOpacity(
-                                          0.10),
-                                    ),
-                                    child:
-                                    const Icon(
-                                      Icons
-                                          .auto_awesome_rounded,
-                                      color:
-                                      accentYellow,
-                                      size: 32,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(
-                              height: 32,
-                            ),
-
-                            // ======================================
-                            // TITRE
-                            // ======================================
-
-                            Text(
-                              'Création de votre\n${widget.meuble}',
-                              textAlign:
-                              TextAlign.center,
-                              style: GoogleFonts
-                                  .playfairDisplay(
-                                color: creamColor,
-                                fontSize: 32,
-                                height: 1.15,
-                                fontWeight:
-                                FontWeight.w500,
-                              ),
-                            ),
-
-                            const SizedBox(
-                              height: 14,
-                            ),
-
-                            // ======================================
-                            // DESCRIPTION
-                            // ======================================
-
-                            Text(
-                              widget.description,
-                              textAlign:
-                              TextAlign.center,
-                              style: GoogleFonts
-                                  .plusJakartaSans(
-                                color:
-                                secondaryText,
-                                fontSize: 13,
-                                height: 1.6,
-                              ),
-                            ),
-
-                            const SizedBox(
-                              height: 26,
-                            ),
-
-                            // ======================================
-                            // INFORMATIONS
-                            // ======================================
-
-                            Padding(
-                              padding:
-                              const EdgeInsets
-                                  .symmetric(
-                                horizontal: 10,
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                MainAxisAlignment
-                                    .spaceEvenly,
-                                children: [
-                                  _info(
-                                    'PIÈCE',
-                                    widget.piece,
-                                  ),
-                                  _info(
-                                    'STYLE',
-                                    widget.style,
-                                  ),
-                                  _info(
-                                    'COULEUR',
-                                    widget.couleur,
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(
-                              height: 30,
-                            ),
-
-                            // ======================================
-                            // IMAGE
-                            // ======================================
-
-                            _zoneImage(),
-
-                            // ======================================
-                            // MEUBLES
-                            // ======================================
-
-                            if (progression >= 1.0 &&
-                                meubles.isNotEmpty) ...[
-                              const SizedBox(
-                                height: 35,
-                              ),
-
-                              _sectionTitre(
-                                'MEUBLES DE VOTRE PIÈCE',
-                              ),
-
-                              const SizedBox(
-                                height: 16,
-                              ),
-
-                              ...meubles.map(
-                                    (meubleData) =>
-                                    _carteMeuble(
-                                      meubleData,
-                                    ),
-                              ),
-                            ],
-
-                            const SizedBox(
-                              height: 28,
-                            ),
-
-                            // ======================================
-                            // ÉTAPE
-                            // ======================================
-
-                            AnimatedSwitcher(
-                              duration:
-                              const Duration(
-                                milliseconds: 300,
-                              ),
-                              child: Text(
-                                etapes[
-                                etapeActuelle],
-                                key: ValueKey(
-                                  etapeActuelle,
-                                ),
-                                textAlign:
-                                TextAlign.center,
-                                style: GoogleFonts
-                                    .plusJakartaSans(
-                                  color: creamColor
-                                      .withOpacity(
-                                      0.9),
-                                  fontSize: 12,
-                                  fontWeight:
-                                  FontWeight.w500,
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(
-                              height: 16,
-                            ),
-
-                            // ======================================
-                            // BARRE
-                            // ======================================
-
-                            SizedBox(
-                              width: 260,
-                              child: ClipRRect(
-                                borderRadius:
-                                BorderRadius
-                                    .circular(10),
-                                child:
-                                LinearProgressIndicator(
-                                  value:
-                                  progression,
-                                  minHeight: 4,
-                                  backgroundColor:
-                                  borderColor,
-                                  valueColor:
-                                  const AlwaysStoppedAnimation<
-                                      Color>(
-                                    accentYellow,
-                                  ),
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(
-                              height: 12,
-                            ),
-
-                            // ======================================
-                            // POURCENTAGE
-                            // ======================================
-
-                            Text(
-                              '$pourcentage%',
-                              style: GoogleFonts
-                                  .plusJakartaSans(
-                                color:
-                                secondaryText
-                                    .withOpacity(
-                                    0.7),
-                                fontSize: 11,
-                                fontWeight:
-                                FontWeight.w500,
-                              ),
-                            ),
-
-                            const SizedBox(
-                              height: 22,
-                            ),
-
-                            // ======================================
-                            // MESSAGE FINAL
-                            // ======================================
-
-                            AnimatedOpacity(
-                              duration:
-                              const Duration(
-                                milliseconds: 400,
-                              ),
-                              opacity:
-                              progression >= 1.0
-                                  ? 1
-                                  : 0,
-                              child: Text(
-                                'Votre meuble est prêt à prendre vie.',
-                                textAlign:
-                                TextAlign.center,
-                                style: GoogleFonts
-                                    .plusJakartaSans(
-                                  color:
-                                  secondaryText
-                                      .withOpacity(
-                                      0.65),
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                // ==================================================
-                // BAS
-                // ==================================================
-
-                Padding(
-                  padding:
-                  const EdgeInsets.only(
-                    bottom: 25,
-                  ),
-                  child: Row(
-                    mainAxisAlignment:
-                    MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 5,
-                        height: 5,
-                        decoration:
-                        const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: accentYellow,
-                        ),
-                      ),
-
-                      const SizedBox(width: 8),
-
-                      Text(
-                        'Création personnalisée par IA',
-                        style: GoogleFonts
-                            .plusJakartaSans(
-                          color: secondaryText
-                              .withOpacity(0.55),
-                          fontSize: 10,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // ZONE IMAGE
-  // ============================================================
-
-  Widget _zoneImage() {
-    // IMPORTANT :
-    // Pendant la génération, on affiche l'image "Après"
-    // reçue de ResultatPage.
-    //
-    // Une fois la génération terminée, imageGeneree contient
-    // la nouvelle image retournée par le backend.
-
-    final String? urlAAfficher =
-        imageGeneree ??
-            (widget.imageUrl != null &&
-                widget.imageUrl
-                    .toString()
-                    .trim()
-                    .isNotEmpty
-                ? widget.imageUrl
-                .toString()
-                .trim()
-                : null);
-
-    if (urlAAfficher == null) {
-      return _placeholderImage();
-    }
-
-    return ClipRRect(
-      borderRadius:
-      BorderRadius.circular(22),
-      child: Image.network(
-        urlAAfficher,
-        width: double.infinity,
-        height: 220,
-        fit: BoxFit.contain,
-        loadingBuilder:
-            (context, child, loadingProgress) {
-          if (loadingProgress == null) {
-            return child;
-          }
-
-          return _placeholderImage();
-        },
-        errorBuilder:
-            (context, error, stackTrace) {
-          debugPrint(
-            'ERREUR IMAGE MEUBLE : $error',
-          );
-
-          debugPrint(
-            'URL IMAGE MEUBLE : $urlAAfficher',
-          );
-
-          return _placeholderImage();
-        },
-      ),
-    );
-  }
-
-  // ============================================================
-  // PLACEHOLDER IMAGE
-  // ============================================================
-
-  Widget _placeholderImage() {
-    return Container(
-      width: double.infinity,
-      height: 220,
-      decoration: BoxDecoration(
-        borderRadius:
-        BorderRadius.circular(22),
-        border: Border.all(
-          color: borderColor,
-          width: 1,
-        ),
-        color:
-        cardColor.withOpacity(0.45),
-      ),
-      child: Column(
-        mainAxisAlignment:
-        MainAxisAlignment.center,
-        children: [
-          AnimatedBuilder(
-            animation:
-            animationController,
-            builder:
-                (context, child) {
-              return Transform.rotate(
-                angle:
-                animationController.value *
-                    2 *
-                    3.14159,
-                child: child,
-              );
-            },
-            child: Container(
-              width: 58,
-              height: 58,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color:
-                  accentYellow.withOpacity(
-                      0.35),
-                ),
-              ),
-              child: Icon(
-                _getMeubleIcon(),
-                color: accentYellow,
-                size: 27,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          Text(
-            'Votre meuble prend forme...',
-            textAlign: TextAlign.center,
-            style:
-            GoogleFonts.plusJakartaSans(
-              color: creamColor,
-              fontSize: 12,
-              fontWeight:
-              FontWeight.w500,
-            ),
-          ),
-
-          const SizedBox(height: 6),
-
-          Text(
-            'L’image générée apparaîtra ici',
-            textAlign: TextAlign.center,
-            style:
-            GoogleFonts.plusJakartaSans(
-              color:
-              secondaryText.withOpacity(
-                  0.55),
-              fontSize: 10,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // TITRE SECTION
-  // ============================================================
-
-  Widget _sectionTitre(String titre) {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            height: 1,
-            color: borderColor,
-          ),
-        ),
-
-        Padding(
-          padding:
-          const EdgeInsets.symmetric(
-            horizontal: 14,
-          ),
-          child: Text(
-            titre,
-            style:
-            GoogleFonts.plusJakartaSans(
-              color:
-              creamColor.withOpacity(
-                  0.75),
-              fontSize: 10,
-              fontWeight:
-              FontWeight.w600,
-              letterSpacing: 1.5,
-            ),
-          ),
-        ),
-
-        Expanded(
-          child: Container(
-            height: 1,
-            color: borderColor,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // CARTE MEUBLE
-  // ============================================================
-
-  Widget _carteMeuble(
-      Map<String, dynamic> meubleData) {
-    final String nom =
-    (meubleData['furniture'] ??
-        'Meuble')
-        .toString();
-
-    final cropData = meubleData['crop_image_url'];
-
-    String? cropUrl;
-
-    if (cropData is Map) {
-      final url = cropData['url'];
-
-      if (url is String && url.trim().isNotEmpty) {
-        cropUrl = url.trim();
-      }
-    }
-
-    final String prix =
-    (meubleData['estimated_price'] ??
-        'Prix non disponible')
-        .toString();
-
-    final stores =
-    meubleData['stores'] is List
-        ? meubleData['stores'] as List
-        : [];
-
-    return Container(
-      margin:
-      const EdgeInsets.only(
-        bottom: 18,
-      ),
-      decoration: BoxDecoration(
-        color:
-        cardColor.withOpacity(0.55),
-        borderRadius:
-        BorderRadius.circular(20),
-        border: Border.all(
-          color: borderColor,
-          width: 1,
-        ),
-      ),
-      child: Padding(
-        padding:
-        const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.start,
-          children: [
-            // ==================================================
-            // IMAGE DU MEUBLE
-            // ==================================================
-
-            ClipRRect(
-              borderRadius:
-              BorderRadius.circular(14),
-              child: cropUrl != null &&
-                  cropUrl.isNotEmpty
-                  ? Image.network(
-                cropUrl,
-                width:
-                double.infinity,
-                height: 170,
-                fit: BoxFit.contain,
-                errorBuilder:
-                    (context,
-                    error,
-                    stackTrace) {
-                  return _imageMeublePlaceholder(
-                    nom,
-                  );
-                },
-              )
-                  : _imageMeublePlaceholder(
-                nom,
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ==================================================
-            // NOM
-            // ==================================================
-
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    nom,
-                    style: GoogleFonts
-                        .playfairDisplay(
-                      color: creamColor,
-                      fontSize: 23,
-                      fontWeight:
-                      FontWeight.w500,
-                    ),
-                  ),
-                ),
-
-                Container(
-                  padding:
-                  const EdgeInsets
-                      .symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration:
-                  BoxDecoration(
-                    color: accentYellow
-                        .withOpacity(0.12),
-                    borderRadius:
-                    BorderRadius.circular(
-                        20),
-                    border: Border.all(
-                      color: accentYellow
-                          .withOpacity(
-                          0.25),
-                    ),
-                  ),
-                  child: Icon(
-                    _getIconForMeuble(
-                      nom,
-                    ),
-                    color:
-                    accentYellow,
-                    size: 18,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 14),
-
-            // ==================================================
-            // PRIX
-            // ==================================================
-
-            Text(
-              'PRIX ESTIMÉ',
-              style:
-              GoogleFonts.plusJakartaSans(
-                color: secondaryText
-                    .withOpacity(0.55),
-                fontSize: 9,
-                fontWeight:
-                FontWeight.w600,
-                letterSpacing: 1.2,
-              ),
-            ),
-
-            const SizedBox(height: 6),
-
-            Text(
-              prix,
-              style:
-              GoogleFonts.plusJakartaSans(
-                color: creamColor,
-                fontSize: 12,
-                height: 1.5,
-                fontWeight:
-                FontWeight.w500,
-              ),
-            ),
-
-            // ==================================================
-            // MAGASINS
-            // ==================================================
-
-            if (stores.isNotEmpty) ...[
-              const SizedBox(height: 18),
-
-              Text(
-                'OÙ L’ACHETER ?',
-                style:
-                GoogleFonts.plusJakartaSans(
-                  color: secondaryText
-                      .withOpacity(0.55),
-                  fontSize: 9,
-                  fontWeight:
-                  FontWeight.w600,
-                  letterSpacing: 1.2,
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              ...stores.map(
-                    (store) =>
-                    _storeItem(store),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // PLACEHOLDER MEUBLE
-  // ============================================================
-
-  Widget _imageMeublePlaceholder(
-      String nom) {
-    return Container(
-      width: double.infinity,
-      height: 170,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius:
-        BorderRadius.circular(14),
-        border: Border.all(
-          color: borderColor,
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment:
-        MainAxisAlignment.center,
-        children: [
-          Icon(
-            _getIconForMeuble(nom),
-            color:
-            accentYellow.withOpacity(
-                0.75),
-            size: 38,
-          ),
-
-          const SizedBox(height: 10),
-
-          Text(
-            'Aperçu indisponible',
-            style:
-            GoogleFonts.plusJakartaSans(
-              color: secondaryText,
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // MAGASIN
-  // ============================================================
-
-  Widget _storeItem(dynamic store) {
-    if (store is! Map) {
-      return const SizedBox.shrink();
-    }
-
-    final String title =
-    (store['title'] ?? 'Magasin')
-        .toString();
-
-    final String url =
-    (store['url'] ?? '').toString();
-
-    return Container(
-      margin:
-      const EdgeInsets.only(
-        bottom: 8,
-      ),
-      decoration: BoxDecoration(
-        color:
-        backgroundColor.withOpacity(
-            0.55),
-        borderRadius:
-        BorderRadius.circular(12),
-        border: Border.all(
-          color: borderColor,
-        ),
-      ),
-      child: InkWell(
-        borderRadius:
-        BorderRadius.circular(12),
-        onTap: url.isEmpty
-            ? null
-            : () async {
-          final uri =
-          Uri.tryParse(url);
-
-          if (uri == null) {
-            return;
-          }
-
-          final success =
-          await launchUrl(
-            uri,
-            mode: LaunchMode
-                .externalApplication,
-          );
-
-          if (!success &&
-              mounted) {
-            ScaffoldMessenger
-                .of(context)
-                .showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Impossible d’ouvrir ce site.',
-                ),
-              ),
-            );
-          }
-        },
-        child: Padding(
-          padding:
-          const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 12,
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration:
-                BoxDecoration(
-                  shape:
-                  BoxShape.circle,
-                  color: accentYellow
-                      .withOpacity(0.10),
-                ),
-                child: const Icon(
-                  Icons
-                      .storefront_rounded,
-                  color:
-                  accentYellow,
-                  size: 18,
-                ),
-              ),
-
-              const SizedBox(width: 11),
-
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 2,
-                  overflow:
-                  TextOverflow.ellipsis,
-                  style: GoogleFonts
-                      .plusJakartaSans(
-                    color: creamColor,
-                    fontSize: 11,
-                    height: 1.35,
-                    fontWeight:
-                    FontWeight.w500,
-                  ),
-                ),
-              ),
-
-              const SizedBox(width: 8),
-
-              Icon(
-                Icons
-                    .arrow_forward_ios_rounded,
-                color: secondaryText
-                    .withOpacity(0.55),
-                size: 13,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // ICÔNE MEUBLE
-  // ============================================================
-
-  IconData _getMeubleIcon() {
-    return _getIconForMeuble(
-      widget.meuble,
-    );
-  }
-
-  IconData _getIconForMeuble(
-      String meuble) {
-    final nom =
-    meuble.toLowerCase();
-
-    // ============================
-    // SALON
-    // ============================
-
-    if (nom.contains('canape') ||
-        nom.contains('canape')) {
-      return Icons.weekend_rounded;
-    }
-
-    if (nom.contains('fauteuil')) {
-      return Icons.chair_rounded;
-    }
-
-    if (nom.contains('table basse')) {
-      return Icons
-          .table_restaurant_rounded;
-    }
-
-    if (nom.contains('meuble tv')) {
-      return Icons.tv_rounded;
-    }
-
-    // ============================
-    // CHAMBRE
-    // ============================
-
-    if (nom.contains('lit')) {
-      return Icons.bed_rounded;
-    }
-
-    if (nom.contains('armoire')) {
-      return Icons
-          .door_sliding_rounded;
-    }
-
-    if (nom.contains('commode')) {
-      return Icons
-          .inventory_2_rounded;
-    }
-
-    // ============================
-    // BUREAU
-    // ============================
-
-    if (nom.contains('bureau')) {
-      return Icons.desk_rounded;
-    }
-
-    if (nom.contains('étagère') ||
-        nom.contains('etagere')) {
-      return Icons.shelves;
-    }
-
-    // ============================
-    // CUISINE
-    // ============================
-
-    if (nom.contains('îlot') ||
-        nom.contains('ilot')) {
-      return Icons
-          .table_restaurant_rounded;
-    }
-
-    if (nom.contains(
-        'table de cuisine')) {
-      return Icons
-          .table_restaurant_rounded;
-    }
-
-    if (nom.contains(
-        'table à manger') ||
-        nom.contains('table a manger')) {
-      return Icons
-          .table_restaurant_rounded;
-    }
-
-    if (nom.contains(
-        'meuble de cuisine')) {
-      return Icons
-          .kitchen_rounded;
-    }
-
-    if (nom.contains(
-        'meuble de rangement')) {
-      return Icons
-          .kitchen_rounded;
-    }
-
-    if (nom.contains('buffet')) {
-      return Icons.kitchen_rounded;
-    }
-
-    if (nom.contains('tabouret')) {
-      return Icons.chair_rounded;
-    }
-
-    if (nom.contains('évier') ||
-        nom.contains('evier')) {
-      return Icons
-          .water_drop_rounded;
-    }
-
-    // ============================
-    // GÉNÉRAL
-    // ============================
-
-    if (nom.contains('chaise')) {
-      return Icons.chair_rounded;
-    }
-
-    if (nom.contains('table')) {
-      return Icons
-          .table_restaurant_rounded;
-    }
-
-    return Icons.chair_alt_rounded;
-  }
-
-  // ============================================================
-  // INFORMATIONS
-  // ============================================================
-
-  Widget _info(
-      String titre,
-      String valeur) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            titre,
-            textAlign: TextAlign.center,
-            style:
-            GoogleFonts.plusJakartaSans(
-              color: secondaryText
-                  .withOpacity(0.55),
-              fontSize: 9,
-              fontWeight:
-              FontWeight.w600,
-              letterSpacing: 1.2,
-            ),
-          ),
-
-          const SizedBox(height: 7),
-
-          Text(
-            valeur,
-            maxLines: 1,
-            overflow:
-            TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style:
-            GoogleFonts.plusJakartaSans(
-              color: creamColor,
-              fontSize: 13,
-              fontWeight:
-              FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+debugPrint(
+'=======================================',
+);
 }
+
+// ============================================================
+// BUILD
+// ============================================================
+
+@override
+Widget build(BuildContext context) {
+return Scaffold(
+backgroundColor: backgroundColor,
+
+body: SafeArea(
+child: Column(
+children: [
+
+// ==================================================
+// HEADER
+// ==================================================
+
+Padding(
+padding: const EdgeInsets.fromLTRB(
+18,
+8,
+18,
+8,
+),
+
+child: Row(
+children: [
+
+Container(
+width: 42,
+height: 42,
+
+decoration: BoxDecoration(
+shape: BoxShape.circle,
+color: creamColor.withOpacity(0.05),
+border: Border.all(
+color: borderColor,
+),
+),
+
+child: IconButton(
+padding: EdgeInsets.zero,
+
+onPressed: () {
+Navigator.pop(context);
+},
+
+icon: const Icon(
+Icons.arrow_back_ios_new_rounded,
+color: creamColor,
+size: 17,
+),
+),
+),
+
+Expanded(
+child: Center(
+child: Column(
+children: [
+
+Text(
+'AI INTERIOR DESIGN',
+style:
+GoogleFonts.plusJakartaSans(
+color:
+creamColor.withOpacity(0.85),
+fontSize: 10,
+fontWeight: FontWeight.w600,
+letterSpacing: 2.2,
+),
+),
+
+const SizedBox(height: 3),
+
+Container(
+width: 24,
+height: 1,
+color: accentYellow.withOpacity(0.7),
+),
+],
+),
+),
+),
+
+const SizedBox(
+width: 42,
+),
+],
+),
+),
+
+// ==================================================
+// CONTENU
+// ==================================================
+
+Expanded(
+child: SingleChildScrollView(
+physics: const BouncingScrollPhysics(),
+
+padding: const EdgeInsets.fromLTRB(
+22,
+18,
+22,
+35,
+),
+
+child: Column(
+crossAxisAlignment:
+CrossAxisAlignment.stretch,
+
+children: [
+
+// ==========================================
+// PETIT LABEL
+// ==========================================
+
+Center(
+child: Row(
+mainAxisSize: MainAxisSize.min,
+children: [
+
+Container(
+width: 5,
+height: 5,
+
+decoration:
+const BoxDecoration(
+shape: BoxShape.circle,
+color: accentYellow,
+),
+),
+
+const SizedBox(width: 8),
+
+Text(
+'SÉLECTION INTÉRIEURE',
+style:
+GoogleFonts.plusJakartaSans(
+color: accentYellow,
+fontSize: 9,
+fontWeight: FontWeight.w600,
+letterSpacing: 1.6,
+),
+),
+],
+),
+),
+
+const SizedBox(height: 14),
+
+// ==========================================
+// TITRE
+// ==========================================
+
+Text(
+widget.meuble,
+textAlign: TextAlign.center,
+
+style:
+GoogleFonts.playfairDisplay(
+color: creamColor,
+fontSize: 36,
+height: 1.1,
+fontWeight: FontWeight.w500,
+),
+),
+
+const SizedBox(height: 12),
+
+// ==========================================
+// DESCRIPTION
+// ==========================================
+
+Padding(
+padding: const EdgeInsets.symmetric(
+horizontal: 12,
+),
+
+child: Text(
+widget.description,
+textAlign: TextAlign.center,
+
+style:
+GoogleFonts.plusJakartaSans(
+color: secondaryText
+    .withOpacity(0.78),
+fontSize: 12,
+height: 1.65,
+),
+),
+),
+
+const SizedBox(height: 24),
+
+// ==========================================
+// INFORMATIONS
+// ==========================================
+
+_infosCard(),
+
+const SizedBox(height: 24),
+
+// ==========================================
+// IMAGE
+// ==========================================
+
+_imageMeuble(),
+
+const SizedBox(height: 30),
+
+// ==========================================
+// PRIX
+// ==========================================
+
+_sectionTitre('PRIX'),
+
+const SizedBox(height: 14),
+
+_cartePrix(),
+
+const SizedBox(height: 30),
+
+// ==========================================
+// MAGASINS
+// ==========================================
+
+_sectionTitre('OÙ L’ACHETER ?'),
+
+const SizedBox(height: 8),
+
+Text(
+'Retrouvez ce meuble auprès de nos sélections partenaires.',
+textAlign: TextAlign.center,
+
+style:
+GoogleFonts.plusJakartaSans(
+color: secondaryText.withOpacity(0.55),
+fontSize: 10,
+height: 1.5,
+),
+),
+
+const SizedBox(height: 16),
+
+if (stores.isNotEmpty)
+...stores.map(
+(store) => _storeItem(store),
+)
+else
+_aucunMagasin(),
+
+const SizedBox(height: 12),
+
+// ==========================================
+// NOTE
+// ==========================================
+
+Text(
+'Les prix sont indicatifs et peuvent varier selon le magasin.',
+textAlign: TextAlign.center,
+
+style:
+GoogleFonts.plusJakartaSans(
+color: secondaryText.withOpacity(0.38),
+fontSize: 9,
+height: 1.5,
+),
+),
+],
+),
+),
+),
+
+// ==================================================
+// BAS DE PAGE
+// ==================================================
+
+Padding(
+padding: const EdgeInsets.only(
+bottom: 18,
+),
+
+child: Row(
+mainAxisAlignment:
+MainAxisAlignment.center,
+
+children: [
+
+Container(
+width: 5,
+height: 5,
+
+decoration:
+const BoxDecoration(
+shape: BoxShape.circle,
+color: accentYellow,
+),
+),
+
+const SizedBox(width: 8),
+
+Text(
+'Une sélection adaptée à votre intérieur',
+style:
+GoogleFonts.plusJakartaSans(
+color:
+secondaryText.withOpacity(0.45),
+fontSize: 9,
+letterSpacing: 0.35,
+),
+),
+],
+),
+),
+],
+),
+),
+);
+}
+
+// ============================================================
+// INFORMATIONS
+// ============================================================
+
+Widget _infosCard() {
+return Container(
+padding: const EdgeInsets.symmetric(
+vertical: 17,
+horizontal: 8,
+),
+
+decoration: BoxDecoration(
+color: cardColor.withOpacity(0.32),
+
+borderRadius:
+BorderRadius.circular(18),
+
+border: Border.all(
+color: borderColor.withOpacity(0.8),
+),
+),
+
+child: Row(
+children: [
+
+_info(
+'PIÈCE',
+widget.piece,
+),
+
+_verticalDivider(),
+
+_info(
+'STYLE',
+widget.style,
+),
+
+_verticalDivider(),
+
+_info(
+'COULEUR',
+widget.couleur,
+),
+],
+),
+);
+}
+
+Widget _verticalDivider() {
+return Container(
+width: 1,
+height: 30,
+color: borderColor.withOpacity(0.8),
+);
+}
+
+Widget _info(
+String titre,
+String valeur,
+) {
+return Expanded(
+child: Column(
+children: [
+
+Text(
+titre,
+
+style:
+GoogleFonts.plusJakartaSans(
+color:
+secondaryText.withOpacity(0.45),
+fontSize: 8,
+fontWeight: FontWeight.w600,
+letterSpacing: 1.2,
+),
+),
+
+const SizedBox(height: 6),
+
+Text(
+valeur,
+
+maxLines: 1,
+overflow: TextOverflow.ellipsis,
+textAlign: TextAlign.center,
+
+style:
+GoogleFonts.plusJakartaSans(
+color: creamColor,
+fontSize: 11,
+fontWeight: FontWeight.w600,
+),
+),
+],
+),
+);
+}
+
+// ============================================================
+// IMAGE DU MEUBLE
+// ============================================================
+
+Widget _imageMeuble() {
+final imagePath =
+_getImagePath(widget.meuble);
+
+return Container(
+width: double.infinity,
+height: 300,
+
+decoration: BoxDecoration(
+color: cardColor,
+
+borderRadius:
+BorderRadius.circular(22),
+
+border: Border.all(
+color: borderColor,
+width: 1,
+),
+
+boxShadow: [
+BoxShadow(
+color: Colors.black.withOpacity(0.18),
+blurRadius: 25,
+offset: const Offset(0, 12),
+),
+],
+),
+
+child: ClipRRect(
+borderRadius:
+BorderRadius.circular(22),
+
+child: Stack(
+fit: StackFit.expand,
+
+children: [
+
+// IMAGE
+Image.asset(
+imagePath,
+
+width: double.infinity,
+height: double.infinity,
+
+// IMPORTANT :
+// L'image remplit maintenant
+// entièrement le carré.
+fit: BoxFit.cover,
+
+errorBuilder:
+(context, error, stackTrace) {
+debugPrint(
+'ERREUR IMAGE : $error',
+);
+
+debugPrint(
+'CHEMIN : $imagePath',
+);
+
+return _imageMeublePlaceholder();
+},
+),
+
+// VOILE TRÈS LÉGER
+Container(
+decoration: BoxDecoration(
+gradient: LinearGradient(
+begin: Alignment.topCenter,
+end: Alignment.bottomCenter,
+
+colors: [
+Colors.transparent,
+Colors.black.withOpacity(0.18),
+],
+),
+),
+),
+
+// LABEL IMAGE
+Positioned(
+left: 14,
+top: 14,
+
+child: Container(
+padding:
+const EdgeInsets.symmetric(
+horizontal: 10,
+vertical: 6,
+),
+
+decoration: BoxDecoration(
+color: backgroundColor.withOpacity(0.75),
+
+borderRadius:
+BorderRadius.circular(20),
+
+border: Border.all(
+color: creamColor.withOpacity(0.12),
+),
+),
+
+child: Row(
+mainAxisSize: MainAxisSize.min,
+
+children: [
+
+const Icon(
+Icons.auto_awesome_rounded,
+color: accentYellow,
+size: 11,
+),
+
+const SizedBox(width: 6),
+
+Text(
+'INSPIRATION',
+style:
+GoogleFonts.plusJakartaSans(
+color: creamColor,
+fontSize: 8,
+fontWeight: FontWeight.w600,
+letterSpacing: 1,
+),
+),
+],
+),
+),
+),
+],
+),
+),
+);
+}
+
+// ============================================================
+// CHEMIN IMAGE
+// ============================================================
+
+String _getImagePath(String meuble) {
+final nom =
+meuble.toLowerCase().trim();
+
+if (nom.contains('canapé') ||
+nom.contains('canape')) {
+return 'assets/meubles/canape.jpg';
+}
+
+if (nom.contains('fauteuil')) {
+return 'assets/meubles/fauteuil.jpg';
+}
+
+if (nom.contains('table basse')) {
+return 'assets/meubles/table_basse.jpg';
+}
+
+if (nom.contains('meuble tv')) {
+return 'assets/meubles/meuble_tv.jpg';
+}
+
+if (nom == 'lit') {
+return 'assets/meubles/lit.jpg';
+}
+
+if (nom.contains('table de chevet')) {
+return 'assets/meubles/table_chevet.jpg';
+}
+
+if (nom.contains('armoire')) {
+return 'assets/meubles/armoire.jpg';
+}
+
+if (nom.contains('commode')) {
+return 'assets/meubles/commode.jpg';
+}
+
+if (nom.contains('bureau')) {
+return 'assets/meubles/bureau.jpg';
+}
+
+if (nom.contains('bibliothèque') ||
+nom.contains('bibliotheque')) {
+return 'assets/meubles/bibliotheque.jpg';
+}
+
+if (nom.contains('étagère') ||
+nom.contains('etagere')) {
+return 'assets/meubles/etagere.jpg';
+}
+
+if (nom.contains('îlot') ||
+nom.contains('ilot')) {
+return 'assets/meubles/ilot.jpg';
+}
+
+if (nom.contains('table à manger') ||
+nom.contains('table a manger')) {
+return 'assets/meubles/table_a_manger.jpg';
+}
+
+if (nom.contains('meuble de rangement')) {
+return 'assets/meubles/meuble_rangement.jpg';
+}
+
+if (nom.contains('tabouret')) {
+return 'assets/meubles/tabouret.jpg';
+}
+
+if (nom.contains('chaise')) {
+return 'assets/meubles/chaise.jpg';
+}
+
+if (nom.contains('table')) {
+return 'assets/meubles/table.jpg';
+}
+
+return 'assets/meubles/default.jpg';
+}
+
+// ============================================================
+// PLACEHOLDER
+// ============================================================
+
+Widget _imageMeublePlaceholder() {
+return Container(
+width: double.infinity,
+height: double.infinity,
+
+color: backgroundColor,
+
+child: Column(
+mainAxisAlignment:
+MainAxisAlignment.center,
+
+children: [
+
+Icon(
+_getMeubleIcon(),
+color: accentYellow,
+size: 50,
+),
+
+const SizedBox(height: 14),
+
+Text(
+'Image indisponible',
+
+style:
+GoogleFonts.plusJakartaSans(
+color: creamColor,
+fontSize: 12,
+fontWeight: FontWeight.w500,
+),
+),
+],
+),
+);
+}
+
+// ============================================================
+// CARTE PRIX
+// ============================================================
+
+Widget _cartePrix() {
+return Container(
+width: double.infinity,
+
+padding: const EdgeInsets.all(18),
+
+decoration: BoxDecoration(
+color: cardColor.withOpacity(0.38),
+
+borderRadius:
+BorderRadius.circular(18),
+
+border: Border.all(
+color: borderColor,
+),
+),
+
+child: Row(
+crossAxisAlignment:
+CrossAxisAlignment.start,
+
+children: [
+
+Container(
+width: 46,
+height: 46,
+
+decoration: BoxDecoration(
+shape: BoxShape.circle,
+
+color: accentYellow.withOpacity(0.09),
+
+border: Border.all(
+color: accentYellow.withOpacity(0.22),
+),
+),
+
+child: const Icon(
+Icons.sell_outlined,
+color: accentYellow,
+size: 20,
+),
+),
+
+const SizedBox(width: 14),
+
+Expanded(
+child: Column(
+crossAxisAlignment:
+CrossAxisAlignment.start,
+
+children: [
+
+Text(
+'PRIX ESTIMÉ',
+
+style:
+GoogleFonts.plusJakartaSans(
+color:
+secondaryText.withOpacity(0.48),
+fontSize: 8,
+fontWeight: FontWeight.w600,
+letterSpacing: 1.3,
+),
+),
+
+const SizedBox(height: 7),
+
+Text(
+prix,
+
+style:
+GoogleFonts.plusJakartaSans(
+color: creamColor,
+fontSize: 13,
+height: 1.5,
+fontWeight: FontWeight.w500,
+),
+),
+],
+),
+),
+],
+),
+);
+}
+
+// ============================================================
+// AUCUN MAGASIN
+// ============================================================
+
+Widget _aucunMagasin() {
+return Container(
+width: double.infinity,
+
+padding: const EdgeInsets.all(22),
+
+decoration: BoxDecoration(
+color: cardColor.withOpacity(0.35),
+
+borderRadius:
+BorderRadius.circular(18),
+
+border: Border.all(
+color: borderColor,
+),
+),
+
+child: Column(
+children: [
+
+Icon(
+Icons.storefront_outlined,
+color:
+secondaryText.withOpacity(0.45),
+size: 30,
+),
+
+const SizedBox(height: 10),
+
+Text(
+'Aucun site disponible pour ce meuble.',
+
+textAlign: TextAlign.center,
+
+style:
+GoogleFonts.plusJakartaSans(
+color:
+secondaryText.withOpacity(0.62),
+fontSize: 11,
+),
+),
+],
+),
+);
+}
+
+// ============================================================
+// MAGASIN
+// ============================================================
+
+Widget _storeItem(dynamic store) {
+if (store is! Map) {
+return const SizedBox.shrink();
+}
+
+final String title =
+(store['title'] ??
+store['name'] ??
+store['store'] ??
+'Magasin')
+    .toString()
+    .trim();
+
+final String url =
+(store['url'] ??
+store['website'] ??
+store['link'] ??
+'')
+    .toString()
+    .trim();
+
+return Container(
+margin: const EdgeInsets.only(
+bottom: 10,
+),
+
+decoration: BoxDecoration(
+color: cardColor.withOpacity(0.38),
+
+borderRadius:
+BorderRadius.circular(17),
+
+border: Border.all(
+color: borderColor,
+),
+),
+
+child: Material(
+color: Colors.transparent,
+
+child: InkWell(
+borderRadius:
+BorderRadius.circular(17),
+
+onTap: url.isEmpty
+? null
+    : () async {
+Uri? uri =
+Uri.tryParse(url);
+
+if (uri == null) {
+return;
+}
+
+if (!uri.hasScheme) {
+uri = Uri.tryParse(
+'https://$url',
+);
+}
+
+if (uri == null) {
+return;
+}
+
+try {
+final success =
+await launchUrl(
+uri,
+mode:
+LaunchMode.externalApplication,
+);
+
+if (!success &&
+mounted) {
+ScaffoldMessenger
+    .of(context)
+    .showSnackBar(
+const SnackBar(
+content: Text(
+'Impossible d’ouvrir ce site.',
+),
+),
+);
+}
+} catch (e) {
+debugPrint(
+'ERREUR SITE : $e',
+);
+
+if (!mounted) {
+return;
+}
+
+ScaffoldMessenger
+    .of(context)
+    .showSnackBar(
+const SnackBar(
+content: Text(
+'Impossible d’ouvrir ce site.',
+),
+),
+);
+}
+},
+
+child: Padding(
+padding: const EdgeInsets.symmetric(
+horizontal: 14,
+vertical: 12,
+),
+
+child: Row(
+children: [
+
+// ICÔNE MAGASIN
+Container(
+width: 42,
+height: 42,
+
+decoration: BoxDecoration(
+shape: BoxShape.circle,
+
+color:
+accentYellow.withOpacity(0.08),
+
+border: Border.all(
+color:
+accentYellow.withOpacity(0.16),
+),
+),
+
+child: const Icon(
+Icons.storefront_rounded,
+color: accentYellow,
+size: 18,
+),
+),
+
+const SizedBox(width: 13),
+
+// NOM + ACTION
+Expanded(
+child: Column(
+crossAxisAlignment:
+CrossAxisAlignment.start,
+
+children: [
+
+Text(
+title.isEmpty
+? 'Magasin'
+    : title,
+
+maxLines: 2,
+
+overflow:
+TextOverflow.ellipsis,
+
+style:
+GoogleFonts.plusJakartaSans(
+color: creamColor,
+fontSize: 11,
+height: 1.35,
+fontWeight: FontWeight.w600,
+),
+),
+
+const SizedBox(height: 5),
+
+Row(
+children: [
+
+Text(
+url.isEmpty
+? 'Site indisponible'
+    : 'Visiter le site',
+
+style:
+GoogleFonts.plusJakartaSans(
+color: url.isEmpty
+? secondaryText
+    .withOpacity(0.4)
+    : accentYellow,
+fontSize: 9,
+fontWeight:
+FontWeight.w600,
+),
+),
+
+if (url.isNotEmpty) ...[
+const SizedBox(width: 5),
+
+const Icon(
+Icons
+    .north_east_rounded,
+color: accentYellow,
+size: 10,
+),
+],
+],
+),
+],
+),
+),
+
+const SizedBox(width: 8),
+
+// FLÈCHE
+Container(
+width: 30,
+height: 30,
+
+decoration: BoxDecoration(
+shape: BoxShape.circle,
+
+color:
+creamColor.withOpacity(0.04),
+),
+
+child: const Icon(
+Icons.arrow_forward_ios_rounded,
+color: secondaryText,
+size: 11,
+),
+),
+],
+),
+),
+),
+),
+);
+}
+
+// ============================================================
+// TITRE SECTION
+// ============================================================
+
+Widget _sectionTitre(String titre) {
+return Row(
+children: [
+
+Expanded(
+child: Container(
+height: 1,
+color: borderColor,
+),
+),
+
+Padding(
+padding:
+const EdgeInsets.symmetric(
+horizontal: 13,
+),
+
+child: Text(
+titre,
+
+style:
+GoogleFonts.plusJakartaSans(
+color:
+creamColor.withOpacity(0.72),
+fontSize: 12,
+fontWeight: FontWeight.w600,
+letterSpacing: 1.7,
+),
+),
+),
+
+Expanded(
+child: Container(
+height: 1,
+color: borderColor,
+),
+),
+],
+);
+}
+
+// ============================================================
+// ICÔNE
+// ============================================================
+
+IconData _getMeubleIcon() {
+final nom =
+widget.meuble.toLowerCase();
+
+if (nom.contains('canapé') ||
+nom.contains('canape')) {
+return Icons.weekend_rounded;
+}
+
+if (nom.contains('fauteuil')) {
+return Icons.chair_rounded;
+}
+
+if (nom.contains('table')) {
+return Icons.table_restaurant_rounded;
+}
+
+if (nom.contains('lit')) {
+return Icons.bed_rounded;
+}
+
+if (nom.contains('armoire')) {
+return Icons.door_sliding_rounded;
+}
+
+if (nom.contains('bureau')) {
+return Icons.desk_rounded;
+}
+
+if (nom.contains('bibliothèque') ||
+nom.contains('bibliotheque') ||
+nom.contains('étagère') ||
+nom.contains('etagere')) {
+return Icons.shelves;
+}
+
+if (nom.contains('cuisine')) {
+return Icons.kitchen_rounded;
+}
+
+if (nom.contains('chaise') ||
+nom.contains('tabouret')) {
+return Icons.chair_rounded;
+}
+
+return Icons.chair_alt_rounded;
+}
+}
+

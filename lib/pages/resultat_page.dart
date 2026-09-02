@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:gal/gal.dart';
+
 import 'meuble_generation_page.dart';
 
 class ResultatPage extends StatelessWidget {
@@ -12,10 +14,10 @@ class ResultatPage extends StatelessWidget {
   final String style;
   final String couleur;
 
-  // Résultat retourné par le worker GPU
+  // Réponse complète du backend
   final dynamic resultatIA;
 
-  // URL de l'image source stockée dans Supabase
+  // URL de l'image source
   final String? inputImageUrl;
 
   const ResultatPage({
@@ -28,6 +30,10 @@ class ResultatPage extends StatelessWidget {
     this.inputImageUrl,
   });
 
+  // ============================================================
+  // COULEURS
+  // ============================================================
+
   static const Color backgroundColor = Color(0xFF102A27);
   static const Color cardColor = Color(0xFF183C34);
   static const Color accentYellow = Color(0xFFE3A812);
@@ -35,33 +41,154 @@ class ResultatPage extends StatelessWidget {
   static const Color secondaryText = Color(0xFFD5D0C2);
   static const Color borderColor = Color(0xFF2A5148);
 
+  // ============================================================
+  // RÉCUPÉRER L'URL DE L'IMAGE GÉNÉRÉE
+  // ============================================================
+
   String? getImageGenereeUrl() {
     if (resultatIA is! Map) {
+      debugPrint('RESULTAT IA : ce n\'est pas une Map');
       return null;
     }
 
     final Map<String, dynamic> data =
     Map<String, dynamic>.from(resultatIA as Map);
 
-    debugPrint('RESULTAT IA = $data');
+    debugPrint('========== RESULTAT IA ==========');
+    debugPrint(data.toString());
 
+    // Le backend peut avoir generated_image_url directement
+    final directUrl = data['generated_image_url'];
+
+    if (directUrl is String &&
+        directUrl.trim().isNotEmpty &&
+        (directUrl.startsWith('http://') ||
+            directUrl.startsWith('https://'))) {
+      return directUrl.trim();
+    }
+
+    // Ou dans result
     final result = data['result'];
 
     if (result is Map) {
       final generatedUrl = result['generated_image_url'];
 
-      debugPrint('GENERATED IMAGE URL = $generatedUrl');
-
       if (generatedUrl is String &&
-          generatedUrl.isNotEmpty &&
+          generatedUrl.trim().isNotEmpty &&
           (generatedUrl.startsWith('http://') ||
               generatedUrl.startsWith('https://'))) {
-        return generatedUrl;
+        return generatedUrl.trim();
       }
     }
 
+    debugPrint('Aucune URL image générée trouvée.');
+
     return null;
   }
+
+  // ============================================================
+  // NORMALISER UN NOM DE MEUBLE
+  // ============================================================
+
+  String _normaliserMeuble(String valeur) {
+    return valeur
+        .toLowerCase()
+        .trim()
+        .replaceAll('é', 'e')
+        .replaceAll('è', 'e')
+        .replaceAll('ê', 'e')
+        .replaceAll('ë', 'e')
+        .replaceAll('à', 'a')
+        .replaceAll('â', 'a')
+        .replaceAll('ä', 'a')
+        .replaceAll('î', 'i')
+        .replaceAll('ï', 'i')
+        .replaceAll('ô', 'o')
+        .replaceAll('ö', 'o')
+        .replaceAll('ù', 'u')
+        .replaceAll('û', 'u')
+        .replaceAll('ü', 'u')
+        .replaceAll('ç', 'c');
+  }
+
+  // ============================================================
+  // RÉCUPÉRER L'OFFRE DU MARCHÉ
+  //
+  // Exemple backend :
+  //
+  // {
+  //   "furniture": "Canapé",
+  //   "estimated_price": "...",
+  //   "stores": [...]
+  // }
+  // ============================================================
+
+  Map<String, dynamic>? _getMarketOffer(String meuble) {
+    if (resultatIA is! Map) {
+      debugPrint('RESULTAT IA invalide.');
+      return null;
+    }
+
+    final data = Map<String, dynamic>.from(resultatIA as Map);
+
+    final marketOffers = data['market_offers'];
+
+    if (marketOffers is! List) {
+      debugPrint('market_offers absent.');
+      return null;
+    }
+
+    final meubleRecherche = _normaliserMeuble(meuble);
+
+    debugPrint(
+      'Recherche offre pour : $meubleRecherche',
+    );
+
+    for (final offer in marketOffers) {
+      if (offer is! Map) {
+        continue;
+      }
+
+      final furniture =
+      _normaliserMeuble(
+        (offer['furniture'] ?? '').toString(),
+      );
+
+      debugPrint(
+        'Offre backend : $furniture',
+      );
+
+      if (furniture == meubleRecherche) {
+        final offre =
+        Map<String, dynamic>.from(offer);
+
+        debugPrint(
+          '========== OFFRE TROUVÉE ==========',
+        );
+        debugPrint(
+          'Meuble : $meuble',
+        );
+        debugPrint(
+          'Offre : $offre',
+        );
+        debugPrint(
+          '===================================',
+        );
+
+        return offre;
+      }
+    }
+
+    debugPrint(
+      'Aucune offre trouvée pour $meuble',
+    );
+
+    return null;
+  }
+
+  // ============================================================
+  // IMAGE APRÈS
+  // ============================================================
 
   Widget _buildImageApres(BuildContext context) {
     final String? imageUrl = getImageGenereeUrl();
@@ -82,66 +209,83 @@ class ResultatPage extends StatelessWidget {
       );
     }
 
-
     return GestureDetector(
-    onTap: () {
-    Navigator.push(
-    context,
-    MaterialPageRoute(
-    builder: (context) => ImageFullscreenPage(
-    imageUrl: imageUrl,
-    ),
-    ),
-    );
-    },
-    child: Image.network(
-    imageUrl,
-    fit: BoxFit.cover,
-    loadingBuilder: (context, child, loadingProgress) {
-    if (loadingProgress == null) {
-    return child;
-    }
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ImageFullscreenPage(
+              imageUrl: imageUrl,
+            ),
+          ),
+        );
+      },
+      child: Image.network(
+        imageUrl,
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.contain,
+        loadingBuilder: (
+            context,
+            child,
+            loadingProgress,
+            ) {
+          if (loadingProgress == null) {
+            return child;
+          }
 
-    return Container(
-    color: cardColor,
-    alignment: Alignment.center,
-    child: const CircularProgressIndicator(
-    color: accentYellow,
-    ),
-    );
-    },
-    errorBuilder: (context, error, stackTrace) {
-    debugPrint('ERREUR IMAGE GENEREE : $error');
-    debugPrint('URL : $imageUrl');
+          return Container(
+            color: cardColor,
+            alignment: Alignment.center,
+            child: const SizedBox(
+              width: 25,
+              height: 25,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: accentYellow,
+              ),
+            ),
+          );
+        },
+        errorBuilder: (
+            context,
+            error,
+            stackTrace,
+            ) {
+          debugPrint(
+            'ERREUR IMAGE GENEREE : $error',
+          );
 
-    return Container(
-    color: cardColor,
-    alignment: Alignment.center,
-    padding: const EdgeInsets.all(12),
-    child: Text(
-    'Impossible de charger l’image générée.',
-    textAlign: TextAlign.center,
-    style: GoogleFonts.plusJakartaSans(
-    color: secondaryText,
-    fontSize: 11,
-    ),
-    ),
-    );
-    },
-    ),
-    );
+          debugPrint(
+            'URL : $imageUrl',
+          );
 
-
+          return Container(
+            color: cardColor,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              'Impossible de charger l’image générée.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                color: secondaryText,
+                fontSize: 11,
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
-
-
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: backgroundColor,
-
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(
@@ -153,6 +297,7 @@ class ResultatPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+
               // ==================================================
               // HEADER
               // ==================================================
@@ -174,8 +319,10 @@ class ResultatPage extends StatelessWidget {
                     child: Center(
                       child: Text(
                         'A I  I N T E R I O R  D E S I G N',
+                        textAlign: TextAlign.center,
                         style: GoogleFonts.plusJakartaSans(
-                          color: creamColor.withOpacity(0.85),
+                          color:
+                          creamColor.withOpacity(0.85),
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 2.5,
@@ -232,7 +379,9 @@ class ResultatPage extends StatelessWidget {
                       titre: 'Avant',
                       image: Image.file(
                         imageAvant,
-                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.contain,
                       ),
                     ),
                   ),
@@ -263,7 +412,8 @@ class ResultatPage extends StatelessWidget {
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   color: cardColor,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius:
+                  BorderRadius.circular(20),
                   border: Border.all(
                     color: borderColor,
                   ),
@@ -274,7 +424,8 @@ class ResultatPage extends StatelessWidget {
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: accentYellow.withOpacity(0.12),
+                        color:
+                        accentYellow.withOpacity(0.12),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -286,37 +437,40 @@ class ResultatPage extends StatelessWidget {
 
                     const SizedBox(width: 14),
 
-                    Column(
-                      crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Style $style',
-                              style: GoogleFonts.playfairDisplay(
-                                color: creamColor,
-                                fontSize: 19,
-                                fontWeight: FontWeight.w500,
-                              ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Style $style',
+                            maxLines: 1,
+                            overflow:
+                            TextOverflow.ellipsis,
+                            style:
+                            GoogleFonts.playfairDisplay(
+                              color: creamColor,
+                              fontSize: 19,
+                              fontWeight:
+                              FontWeight.w500,
                             ),
+                          ),
 
-                            const SizedBox(height: 4),
+                          const SizedBox(height: 5),
 
-                            Text(
-                              getDescriptionStyle(style),
-                              style: GoogleFonts.plusJakartaSans(
-                                color: secondaryText,
-                                fontSize: 11,
-                              ),
+                          Text(
+                            getDescriptionStyle(style),
+                            maxLines: 2,
+                            overflow:
+                            TextOverflow.ellipsis,
+                            style:
+                            GoogleFonts.plusJakartaSans(
+                              color: secondaryText,
+                              fontSize: 11,
                             ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 4),
-
-                      ],
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -325,17 +479,12 @@ class ResultatPage extends StatelessWidget {
               const SizedBox(height: 30),
 
               // ==================================================
-              // PALETTE
-              // ==================================================
-
-
-              const SizedBox(height: 30),
-
-              // ==================================================
               // MEUBLES
               // ==================================================
 
-              _sectionTitle('Meubles recommandés'),
+              _sectionTitle(
+                'Meubles recommandés',
+              ),
 
               const SizedBox(height: 12),
 
@@ -371,16 +520,22 @@ class ResultatPage extends StatelessWidget {
                     ),
                     label: Text(
                       'Retour à l’accueil',
-                      style: GoogleFonts.playfairDisplay(
+                      style:
+                      GoogleFonts.playfairDisplay(
                         fontSize: 15,
-                        fontWeight: FontWeight.w500,
+                        fontWeight:
+                        FontWeight.w500,
                       ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: accentYellow,
-                      foregroundColor: backgroundColor,
+                    style:
+                    ElevatedButton.styleFrom(
+                      backgroundColor:
+                      accentYellow,
+                      foregroundColor:
+                      backgroundColor,
                       elevation: 0,
-                      shape: RoundedRectangleBorder(
+                      shape:
+                      RoundedRectangleBorder(
                         borderRadius:
                         BorderRadius.circular(30),
                       ),
@@ -395,35 +550,39 @@ class ResultatPage extends StatelessWidget {
     );
   }
 
+  // ============================================================
+  // MEUBLES SELON LA PIÈCE
+  // ============================================================
 
-
-// ============================================================
-// MEUBLES SELON LA PIÈCE
-// ============================================================
-
-  List<Map<String, dynamic>> getMeublesSelonPiece(String piece) {
+  List<Map<String, dynamic>> getMeublesSelonPiece(
+      String piece) {
     switch (piece.toLowerCase()) {
       case 'salon':
         return [
           {
             'icon': Icons.weekend_outlined,
             'nom': 'Canape',
-            'description': 'Design épuré et confortable',
+            'description':
+            'Design épuré et confortable',
           },
           {
-            'icon': Icons.table_restaurant_outlined,
+            'icon':
+            Icons.table_restaurant_outlined,
             'nom': 'Table basse',
-            'description': 'Bois clair et lignes minimalistes',
+            'description':
+            'Bois clair et lignes minimalistes',
           },
           {
             'icon': Icons.chair_outlined,
             'nom': 'Fauteuil',
-            'description': 'Assise élégante et confortable',
+            'description':
+            'Assise élégante et confortable',
           },
           {
             'icon': Icons.tv_outlined,
             'nom': 'Meuble TV',
-            'description': 'Rangement moderne et discret',
+            'description':
+            'Rangement moderne et discret',
           },
         ];
 
@@ -432,46 +591,58 @@ class ResultatPage extends StatelessWidget {
           {
             'icon': Icons.bed_outlined,
             'nom': 'Lit',
-            'description': 'Structure confortable et élégante',
+            'description':
+            'Structure confortable et élégante',
           },
           {
             'icon': Icons.table_bar_outlined,
             'nom': 'Table de chevet',
-            'description': 'Pratique et assortie au style',
+            'description':
+            'Pratique et assortie au style',
           },
           {
-            'icon': Icons.door_sliding_outlined,
+            'icon':
+            Icons.door_sliding_outlined,
             'nom': 'Armoire',
-            'description': 'Rangement fonctionnel et harmonieux',
+            'description':
+            'Rangement fonctionnel et harmonieux',
           },
           {
-            'icon': Icons.inventory_2_outlined,
+            'icon':
+            Icons.inventory_2_outlined,
             'nom': 'Commode',
-            'description': 'Rangement compact et élégant',
+            'description':
+            'Rangement compact et élégant',
           },
         ];
 
       case 'cuisine':
         return [
           {
-            'icon': Icons.countertops_outlined,
+            'icon':
+            Icons.countertops_outlined,
             'nom': 'Îlot central',
-            'description': 'Surface pratique et conviviale',
+            'description':
+            'Surface pratique et conviviale',
           },
           {
             'icon': Icons.chair_outlined,
             'nom': 'Tabourets',
-            'description': 'Assises adaptées à l’espace',
+            'description':
+            'Assises adaptées à l’espace',
           },
           {
-            'icon': Icons.table_restaurant_outlined,
+            'icon':
+            Icons.table_restaurant_outlined,
             'nom': 'Table à manger',
-            'description': 'Design harmonieux et fonctionnel',
+            'description':
+            'Design harmonieux et fonctionnel',
           },
           {
             'icon': Icons.kitchen_outlined,
             'nom': 'Meuble de rangement',
-            'description': 'Optimisation intelligente de l’espace',
+            'description':
+            'Optimisation intelligente de l’espace',
           },
         ];
 
@@ -480,22 +651,28 @@ class ResultatPage extends StatelessWidget {
           {
             'icon': Icons.desk_outlined,
             'nom': 'Bureau',
-            'description': 'Surface de travail fonctionnelle',
+            'description':
+            'Surface de travail fonctionnelle',
           },
           {
             'icon': Icons.chair_outlined,
             'nom': 'Chaise de bureau',
-            'description': 'Confort et ergonomie',
+            'description':
+            'Confort et ergonomie',
           },
           {
-            'icon': Icons.menu_book_outlined,
+            'icon':
+            Icons.menu_book_outlined,
             'nom': 'Bibliothèque',
-            'description': 'Rangement pratique et élégant',
+            'description':
+            'Rangement pratique et élégant',
           },
           {
-            'icon': Icons.inventory_2_outlined,
+            'icon':
+            Icons.inventory_2_outlined,
             'nom': 'Meuble de rangement',
-            'description': 'Organisation optimale',
+            'description':
+            'Organisation optimale',
           },
         ];
 
@@ -504,10 +681,9 @@ class ResultatPage extends StatelessWidget {
     }
   }
 
-
-// ============================================================
-// DESCRIPTION DU STYLE
-// ============================================================
+  // ============================================================
+  // DESCRIPTION STYLE
+  // ============================================================
 
   String getDescriptionStyle(String style) {
     switch (style.toLowerCase()) {
@@ -528,9 +704,9 @@ class ResultatPage extends StatelessWidget {
     }
   }
 
-// ============================================================
-// TITRE SECTION
-// ============================================================
+  // ============================================================
+  // TITRE SECTION
+  // ============================================================
 
   Widget _sectionTitle(String title) {
     return Text(
@@ -544,20 +720,9 @@ class ResultatPage extends StatelessWidget {
     );
   }
 
-
-// ============================================================
-// TITRE SECTION
-// ============================================================
-
-
-
   // ============================================================
-
-
+  // CARTE IMAGE
   // ============================================================
-  // IMAGE AVANT / APRÈS
-  // ============================================================
-
 
   Widget _imageCard({
     required String titre,
@@ -566,10 +731,12 @@ class ResultatPage extends StatelessWidget {
     return Container(
       height: 190,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius:
+        BorderRadius.circular(22),
         border: Border.all(
           color: borderColor,
         ),
+        color: cardColor,
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -598,10 +765,12 @@ class ResultatPage extends StatelessWidget {
             child: IgnorePointer(
               child: Text(
                 titre,
-                style: GoogleFonts.plusJakartaSans(
+                style:
+                GoogleFonts.plusJakartaSans(
                   color: Colors.white,
                   fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  fontWeight:
+                  FontWeight.w600,
                 ),
               ),
             ),
@@ -610,27 +779,9 @@ class ResultatPage extends StatelessWidget {
       ),
     );
   }
-  // ============================================================
-  // COULEURS
-  // ============================================================
-
-  Widget _colorCircle(Color couleur) {
-    return Container(
-      margin: const EdgeInsets.only(right: 14),
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: couleur,
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: borderColor,
-        ),
-      ),
-    );
-  }
 
   // ============================================================
-  // MEUBLE
+  // CARTE MEUBLE
   // ============================================================
 
   Widget _furnitureCard(
@@ -641,29 +792,81 @@ class ResultatPage extends StatelessWidget {
       ) {
     return GestureDetector(
       onTap: () {
+        // IMPORTANT :
+        // On récupère directement l'offre
+        // déjà renvoyée par /api/design/generate.
+
+        final offer =
+        _getMarketOffer(titre);
+
+        String? estimatedPrice;
+        List<dynamic> stores = [];
+
+        if (offer != null) {
+          final dynamic price =
+          offer['estimated_price'];
+
+          if (price != null &&
+              price.toString().trim().isNotEmpty) {
+            estimatedPrice =
+                price.toString().trim();
+          }
+
+          final dynamic storesData =
+          offer['stores'];
+
+          if (storesData is List) {
+            stores =
+            List<dynamic>.from(storesData);
+          }
+        }
+
+        debugPrint(
+          '========== NAVIGATION MEUBLE ==========',
+        );
+        debugPrint('Meuble : $titre');
+        debugPrint(
+          'Prix : $estimatedPrice',
+        );
+        debugPrint(
+          'Magasins : ${stores.length}',
+        );
+        debugPrint(
+          '=======================================',
+        );
+
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => MeubleGenerationPage(
-              piece: piece,
-              style: style,
-              couleur: couleur,
-              meuble: titre,
-              description: description,
-              imageUrl: getImageGenereeUrl() ?? '',
-            ),
+            builder: (context) =>
+                MeubleGenerationPage(
+                  piece: piece,
+                  style: style,
+                  couleur: couleur,
+                  meuble: titre,
+                  description: description,
+
+                  // DONNÉES DU BACKEND
+                  estimatedPrice:
+                  estimatedPrice,
+                  stores: stores,
+                ),
           ),
         );
       },
+
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(
+        margin:
+        const EdgeInsets.only(bottom: 10),
+        padding:
+        const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 12,
         ),
         decoration: BoxDecoration(
           color: cardColor,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius:
+          BorderRadius.circular(18),
           border: Border.all(
             color: borderColor,
           ),
@@ -674,7 +877,8 @@ class ResultatPage extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: accentYellow.withOpacity(0.10),
+                color:
+                accentYellow.withOpacity(0.10),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -693,10 +897,15 @@ class ResultatPage extends StatelessWidget {
                 children: [
                   Text(
                     titre,
-                    style: GoogleFonts.plusJakartaSans(
+                    maxLines: 1,
+                    overflow:
+                    TextOverflow.ellipsis,
+                    style:
+                    GoogleFonts.plusJakartaSans(
                       color: creamColor,
                       fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                      fontWeight:
+                      FontWeight.w600,
                     ),
                   ),
 
@@ -704,7 +913,11 @@ class ResultatPage extends StatelessWidget {
 
                   Text(
                     description,
-                    style: GoogleFonts.plusJakartaSans(
+                    maxLines: 2,
+                    overflow:
+                    TextOverflow.ellipsis,
+                    style:
+                    GoogleFonts.plusJakartaSans(
                       color: secondaryText,
                       fontSize: 10,
                     ),
@@ -712,6 +925,8 @@ class ResultatPage extends StatelessWidget {
                 ],
               ),
             ),
+
+            const SizedBox(width: 8),
 
             const Icon(
               Icons.arrow_forward_ios_rounded,
@@ -722,10 +937,12 @@ class ResultatPage extends StatelessWidget {
         ),
       ),
     );
-
   }
 }
 
+// ================================================================
+// PAGE IMAGE PLEIN ÉCRAN
+// ================================================================
 
 class ImageFullscreenPage extends StatefulWidget {
   final String imageUrl;
@@ -742,18 +959,17 @@ class ImageFullscreenPage extends StatefulWidget {
 
 class _ImageFullscreenPageState
     extends State<ImageFullscreenPage> {
-
   bool telechargement = false;
+
+  // ============================================================
+  // TÉLÉCHARGER
+  // ============================================================
 
   Future<void> telechargerImage() async {
     try {
       setState(() {
         telechargement = true;
       });
-
-      debugPrint(
-        'Téléchargement image : ${widget.imageUrl}',
-      );
 
       final response = await http.get(
         Uri.parse(widget.imageUrl),
@@ -765,16 +981,19 @@ class _ImageFullscreenPageState
         );
       }
 
-      final Uint8List bytes = response.bodyBytes;
+      final Uint8List bytes =
+          response.bodyBytes;
 
       await Gal.putImageBytes(
         bytes,
-        name: 'AI_Interior_Design_${DateTime.now().millisecondsSinceEpoch}',
+        name:
+        'AI_Interior_Design_${DateTime.now().millisecondsSinceEpoch}',
       );
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         const SnackBar(
           content: Text(
             'Image enregistrée dans votre galerie.',
@@ -788,7 +1007,8 @@ class _ImageFullscreenPageState
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
           content: Text(
             'Impossible d’enregistrer l’image : $e',
@@ -816,7 +1036,8 @@ class _ImageFullscreenPageState
 
         title: Text(
           'Votre intérieur',
-          style: GoogleFonts.plusJakartaSans(
+          style:
+          GoogleFonts.plusJakartaSans(
             color: Colors.white,
             fontSize: 15,
             fontWeight: FontWeight.w600,
@@ -825,15 +1046,15 @@ class _ImageFullscreenPageState
 
         actions: [
           IconButton(
-            onPressed:
-            telechargement
+            onPressed: telechargement
                 ? null
                 : telechargerImage,
             icon: telechargement
                 ? const SizedBox(
               width: 20,
               height: 20,
-              child: CircularProgressIndicator(
+              child:
+              CircularProgressIndicator(
                 color: Colors.white,
                 strokeWidth: 2,
               ),
@@ -867,23 +1088,29 @@ class _ImageFullscreenPageState
                 return child;
               }
 
-              return const CircularProgressIndicator(
-                color: Colors.white,
+              return const Center(
+                child:
+                CircularProgressIndicator(
+                  color: Colors.white,
+                ),
               );
             },
 
             errorBuilder:
                 (context, error, stackTrace) {
-              return Padding(
-                padding:
-                const EdgeInsets.all(30),
-                child: Text(
-                  'Impossible de charger l’image.',
-                  textAlign: TextAlign.center,
-                  style:
-                  GoogleFonts.plusJakartaSans(
-                    color: Colors.white,
-                    fontSize: 13,
+              return Center(
+                child: Padding(
+                  padding:
+                  const EdgeInsets.all(30),
+                  child: Text(
+                    'Impossible de charger l’image.',
+                    textAlign:
+                    TextAlign.center,
+                    style:
+                    GoogleFonts.plusJakartaSans(
+                      color: Colors.white,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               );
@@ -894,4 +1121,3 @@ class _ImageFullscreenPageState
     );
   }
 }
-
